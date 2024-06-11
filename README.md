@@ -1,6 +1,6 @@
 # Bamboo Project 🎋
 
-![Untitled-2024-06-11-1726](assets/Untitled-2024-06-11-1726.png)
+![Untitled-2024-06-11-1726](doc/assets/Untitled-2024-06-11-1726.png)
 
 ## ODS 层
 
