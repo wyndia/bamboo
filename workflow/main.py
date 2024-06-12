@@ -1,11 +1,9 @@
-import akshare as ak
 import pytz
-import pandas as pd
 from datetime import datetime, timedelta
-from utils import fetch_stock_data_parallel
+from utils import *
 
 
-def fetch_recent_data_on_the_fly(days=30):
+def fetch_recent_data_on_the_fly(days=90):
     """
     Temporary solution. Will read data from persisted data in the future.
     """
@@ -27,4 +25,6 @@ def fetch_recent_data_on_the_fly(days=30):
 
 if __name__ == '__main__':
     all_stock_data = fetch_recent_data_on_the_fly()
+    all_stock_data = is_closing_price_limit_up(all_stock_data)
+    all_stock_data = consecutive_limit_up_days(all_stock_data)
     print(all_stock_data)

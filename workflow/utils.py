@@ -1,4 +1,5 @@
 import akshare as ak
+import duckdb
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from retry import retry
@@ -23,3 +24,27 @@ def fetch_stock_data_parallel(stock_list, start_date, end_date, adjust="qfq", ma
             except Exception as e:
                 print(f"Error processing data for {symbol}: {e}")
     return all_data
+
+
+def is_closing_price_limit_up(df):
+    query = """
+        select *,
+               if(ABS(涨跌幅 - if(股票代码 like '3%', 20, 10)) < 0.5, true, false) as 是否收盘涨停
+        from df
+    """
+    return duckdb.sql(query).df()
+
+
+def consecutive_limit_up_days(df):
+    df = df.sort_values(by=['股票代码', '日期'])
+    df['连续收盘涨停天数'] = 0
+    for code in df['股票代码'].unique():
+        stock_df = df[df['股票代码'] == code]
+        streak = 0
+        for i, row in stock_df.iterrows():
+            if row['是否收盘涨停']:
+                streak += 1
+            else:
+                streak = 0
+            df.at[i, '连续收盘涨停天数'] = streak
+    return df
