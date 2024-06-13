@@ -1,5 +1,6 @@
 from datetime import timedelta, datetime
 import pytz
+
 from utils import *
 
 
@@ -8,7 +9,7 @@ def days_from_date(start_date):
     start_date = datetime.strptime(start_date, '%Y-%m-%d')
     # Get today's date
     tz_utc_8 = pytz.timezone('Asia/Shanghai')
-    today = datetime.now(tz_utc_8).strftime('%Y%m%d')
+    today = datetime.now(tz_utc_8).replace(tzinfo=None)
     # Calculate the difference in days
     delta = today - start_date
     return delta.days
