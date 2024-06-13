@@ -1,11 +1,11 @@
+import functools
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import akshare as ak
 import duckdb
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from retry import retry
-import time
-import sys
-import functools
 
 
 def timeit(func):
@@ -84,13 +84,9 @@ def calculate_avg_premium_rate(df, n, date):
     if target_stocks.empty:
         return None
 
-    # Sort the DataFrame by date to ensure it is in order
-    df_sorted = df.sort_values(by='日期')
-
-    # Get the unique dates in the DataFrame
-    unique_dates = df_sorted['日期'].unique()
-
     # Find the next trading day
+    df_sorted = df.sort_values(by='日期')
+    unique_dates = df_sorted['日期'].unique()
     try:
         next_day_index = list(unique_dates).index(date) + 1
         next_trading_day = unique_dates[next_day_index]
@@ -114,6 +110,46 @@ def calculate_avg_premium_rate(df, n, date):
     return avg_premium_rate
 
 
+def calculate_positive_premium_rate(df, n, date):
+    date = pd.to_datetime(date)
+
+    # Filter stocks with 连续收盘涨停天数 = n on the given date
+    target_stocks = df[(df['连续收盘涨停天数'] == n) & (df['日期'] == date)]
+    if target_stocks.empty:
+        return None
+
+    # Find the next trading day
+    df_sorted = df.sort_values(by='日期')
+    unique_dates = df_sorted['日期'].unique()
+    try:
+        next_day_index = list(unique_dates).index(date) + 1
+        next_trading_day = unique_dates[next_day_index]
+    except (IndexError, ValueError):
+        return None
+
+    # Merge the target stocks with the next trading day's data
+    next_day_data = df_sorted[df_sorted['日期'] == next_trading_day]
+    if next_day_data.empty:
+        return None
+
+    merged_df = pd.merge(target_stocks, next_day_data, on='股票代码', suffixes=('', '_next'))
+
+    # Calculate the premium ratio as (Next day's 开盘价 - Current day's 收盘价) / Current day's 收盘价
+    merged_df['溢价率'] = (merged_df['开盘_next'] - merged_df['收盘']) / merged_df['收盘']
+
+    # Calculate the positive premium ratio
+    positive_premium_count = (merged_df['溢价率'] > 0).sum()
+    total_count = len(merged_df)
+
+    if total_count == 0:
+        return None
+
+    positive_premium_rate = positive_premium_count / total_count
+    positive_premium_rate = f"{positive_premium_rate:.2%}"
+    return positive_premium_rate
+
+
+@timeit
 def generate_summary_dataframe(df, start_date, end_date):
     start_date = pd.to_datetime(start_date)
     end_date = pd.to_datetime(end_date)
@@ -132,11 +168,13 @@ def generate_summary_dataframe(df, start_date, end_date):
         for n in range(1, 9):  # For 连续收盘涨停天数 from 1 to 8
             stock_count = df[(df['连续收盘涨停天数'] == n) & (df['日期'] == date)].shape[0]
             avg_premium_rate = calculate_avg_premium_rate(df, n, date)
+            positive_premium_rate = calculate_positive_premium_rate(df, n, date)
 
-            row[f'连续收盘涨停天数={n}股票数'] = stock_count
-            row[f'连续收盘涨停天数={n}平均溢价率'] = avg_premium_rate
+            row[f'连涨{n}天股票数'] = stock_count
+            row[f'连涨{n}天溢价率'] = avg_premium_rate
+            row[f'连涨{n}天胜率'] = positive_premium_rate
 
         summary_data.append(row)
 
-    summary_df = pd.DataFrame(summary_data)
+    summary_df = pd.DataFrame(summary_data).sort_values(by='日期', ascending=False)
     return summary_df
